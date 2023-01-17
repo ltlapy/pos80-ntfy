@@ -1,5 +1,5 @@
 from escpos.constants import PAPER_PART_CUT
-from escpos.printer import Usb, File
+from escpos.printer import Usb
 from datetime import datetime
 from PIL import Image
 import os
@@ -193,10 +193,10 @@ async def loopever(p: Usb):
 
 def main():
     try:
-        # p = Usb(0x0416, 0x5011)
-        p = Usb(0x1fc9, 0x2016)
-        # p = File("/dev/ttyTMPR")
-        # try:
+        usb_vid = int(os.environ['USB_VID'], 0)
+        usb_pid = int(os.environ['USB_PID'], 0)
+        p = Usb(usb_vid, usb_pid)
+        
         loop = asyncio.get_event_loop()
         loop.run_until_complete(loopever(p))
         loop.run_forever()
