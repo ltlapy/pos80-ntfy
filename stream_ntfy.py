@@ -2,6 +2,7 @@ from escpos.constants import PAPER_PART_CUT
 from escpos.printer import Usb, File
 from datetime import datetime
 from PIL import Image
+import os
 import asyncio
 import websockets
 import json
@@ -174,8 +175,8 @@ async def pprint(p: Usb, body):
 
 
 async def loopever(p: Usb):
-    url = "wss://push.lapy.link/"
-    url += "[redacted]"
+    url = f"wss://{ os.environ['NTFY_BASE'] }/"
+    url += os.environ['NTFY_TOPIC']
     url += "/ws"
     url += "?since=" + str(int(datetime.now().timestamp()))
 
