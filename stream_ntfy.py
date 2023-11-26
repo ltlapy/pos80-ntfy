@@ -1,12 +1,16 @@
+#!/usr/bin/env python3
+
 from escpos.constants import PAPER_PART_CUT
 from escpos.printer import Usb
 from datetime import datetime
 from PIL import Image
+from websockets.exceptions import *
 import os
 import asyncio
 import websockets
 import json
 import requests
+import re
 from io import BytesIO
 from typing import Optional
 
@@ -14,9 +18,9 @@ P_continue = False
 
 
 def title(p: Usb, text, **kwargs):
-    p.set(text_type='B', width=2, align='CENTER', **kwargs)
+    p.set_with_default(bold=True, width=2, align='center', **kwargs)
     p.text(text)
-    p.set()
+    p.set_with_default()
 
 
 def header(
@@ -54,25 +58,25 @@ def header(
             # Hint: 42 'font-A' characters in a line
             p._raw(b'\n')
 
-    # p.set(align="RIGHT", font="b")
-    p.set(font="b")
+    # p.set(align="right", font="b")
+    p.set_with_default(font="b")
     p._raw(b'\x1B\x24\xb0\x01')  # move to 432(0x1b0) from line start
     p.text(time.strftime('%Y-%m-%d %H:%M')+"\n")
-    p.set()
+    p.set(font="a")
 
 
 def footer(p: Usb):
     p._raw(b"\n")
-    p.set(align="CENTER", font="b")
+    p.set_with_default(align="center", font="b")
     p.text("-*-")
 
     p._raw(b"\n\n\n\n")
     # p.cut()
-    p.set(align="RIGHT", text_type="BU")
+    p.set_with_default(align="right", bold=True, underline=1)
     p.text("    Printer.lapy ")
-    p.set(align="RIGHT")
+    p.set(bold=False, underline=0)
     p.text(" * \n")
-    p.set()
+    p.set_with_default()
     p._raw(PAPER_PART_CUT)
 
 
@@ -132,7 +136,7 @@ async def pprint(p: Usb, body):
 
         # region image
         elif filetype in supported_formats:
-            p.set(align="CENTER")
+            p.set_with_default(align="center")
 
             try:
                 res = requests.get(url)
@@ -155,14 +159,25 @@ async def pprint(p: Usb, body):
         # endregion
 
         if 'notext' not in tags \
-                or filename != '':
-            p.set(align="CENTER", font="b")
+                and filename != '':
+            p.set_with_default(align="center", font="b")
             p._raw(b'(' + filename.encode('euckr', 'replace') + b')\n')
-        p.set()
+        p.set_with_default()
+
+    # QR (if prefered)
+    if 'preferqr' in tags:
+        pattern = r"(?i)\b((?:[a-z0-9]{1,16}://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
+        urls = re.findall(pattern, body['message'])
+        if len(urls) > 0:
+            urltxt = urls[0][0]
+            p.set_with_default(align="center", font="b")
+            p.qr(urltxt, size=6)
+            p._raw(urltxt.encode('euckr','replace') + b'\n')
+            p.set_with_default()
 
     # body
     if 'notext' not in tags:
-        p._raw(body['message'].encode('euckr'))
+        p._raw(body['message'].encode('euckr','replace'))
 
     # footer
     if 'continue' in tags:
@@ -173,22 +188,36 @@ async def pprint(p: Usb, body):
     if not p_continue and 'nofooter' not in tags:
         footer(p)
 
+    return {
+        "title": title,
+        "time": time
+    }
+
 
 async def loopever(p: Usb):
     url = f"wss://{ os.environ['NTFY_BASE'] }/"
     url += os.environ['NTFY_TOPIC']
     url += "/ws"
-    url += "?since=" + str(int(datetime.now().timestamp()))
+    # url += "?since=" + str(int(datetime.now().timestamp()))
+    
+    while True:
+        try:
+            async with websockets.connect(url) as websocket:
+                print("ready.")
+                while True:
+                    res = await websocket.recv()
+                    body = json.loads(res)
 
-    async with websockets.connect(url) as websocket:
-        print("ready.")
-        while True:
-            res = await websocket.recv()
-            body = json.loads(res)
-
-            if body['event'] == 'message':
-                await pprint(p, body)
-            # print(body['text'])
+                    if body['event'] == 'message':
+                        print(f"{body['time']} : {body['title']}")
+                        await pprint(p, body)
+                # print(body['text'])
+        except ConnectionClosedError:
+            print("Connection closed. retrying...")
+            continue
+        except ConnectionClosedOK:
+            print("Connectino closed. retrying...")
+            continue
 
 
 def main():
