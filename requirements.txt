@@ -1,2 +1,4 @@
-python-escpos
+requests
 websockets
+pyusb
+python-escpos
