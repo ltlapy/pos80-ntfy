@@ -9,6 +9,11 @@ ntfy.sh에서 알림을 끌어다가 프린터에 쏩니다.
 cp example.env .env
 vi .env
 # edit some environments...
+./run.sh
+```
+or
+```sh
+# Start manually
 export $(grep -v '^#' .env | xargs)
 run
 

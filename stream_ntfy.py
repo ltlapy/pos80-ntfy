@@ -207,9 +207,13 @@ async def loopever(p: Usb):
                 while True:
                     res = await websocket.recv()
                     body = json.loads(res)
+                    title = 'No title'
 
                     if body['event'] == 'message':
-                        print(f"{body['time']} : {body['title']}")
+                        if 'title' in body:
+                            title = body['title']
+
+                        print(f"{body['time']} : {title}")
                         await pprint(p, body)
                 # print(body['text'])
         except ConnectionClosedError:
