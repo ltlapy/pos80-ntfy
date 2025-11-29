@@ -3,7 +3,7 @@
 source ./venv/bin/activate
 
 export $(grep -v '^#' .env | xargs)
-./stream_ntfy.py
+python3 ./stream_ntfy.py
 
 # unset environments
 # https://stackoverflow.com/a/20909045
